@@ -1,0 +1,5 @@
+# Telegram bot framework (async) with JobQueue extra for phase timers
+python-telegram-bot[job-queue]>=21.4,<22
+
+# Load configuration from a .env file
+python-dotenv>=1.0.1,<2

@@ -1,0 +1,15 @@
+{
+  "_comment": "Terms that must never be selected as secret words or appear in prompts. Matched case-insensitively against word/question text. Keep this list focused on unsafe / sensitive content.",
+  "terms": [
+    "suicide",
+    "self harm",
+    "self-harm",
+    "rape",
+    "terrorist",
+    "terrorism",
+    "nazi",
+    "genocide",
+    "cocaine",
+    "heroin"
+  ]
+}

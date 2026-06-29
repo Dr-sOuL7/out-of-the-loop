@@ -1,0 +1,12 @@
+[
+  { "key": "food",          "name": "Food",          "description": "Things you eat and drink." },
+  { "key": "objects",       "name": "Objects",        "description": "Everyday physical things and tools." },
+  { "key": "school_life",   "name": "School life",    "description": "School, classes and study." },
+  { "key": "daily_life",    "name": "Daily life",     "description": "Routines, places and activities." },
+  { "key": "animals",       "name": "Animals",        "description": "Creatures big and small." },
+  { "key": "sports",        "name": "Sports",         "description": "Games, sports and equipment." },
+  { "key": "movies",        "name": "Movies & TV",    "description": "Film, TV and entertainment." },
+  { "key": "technology",    "name": "Technology",     "description": "Gadgets, apps and the internet." },
+  { "key": "indian_culture","name": "Indian culture", "description": "Food, festivals and life in India." },
+  { "key": "absurd_funny",  "name": "Absurd / funny", "description": "Silly, weird and unexpected things." }
+]
