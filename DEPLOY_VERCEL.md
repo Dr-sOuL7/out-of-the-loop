@@ -80,11 +80,30 @@ domain changes.**
 
 ## Step 5 — Start the timer tick
 
-1. Open [`supabase/cron.sql`](supabase/cron.sql) and replace the two
-   placeholders (`YOUR-APP.vercel.app` and `YOUR-WEBHOOK-SECRET`).
-2. Paste it into the Supabase **SQL Editor** and **Run**.
+> ⚠️ Do this **inside the Supabase SQL Editor only** — never write your real
+> secret into a file that gets committed to git.
+
+1. Enable the extensions first, **each statement run on its own** (the SQL
+   Editor runs a block as one transaction — if anything fails, everything in
+   the block silently rolls back, extensions included). Or toggle both in
+   **Dashboard → Database → Extensions**:
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS pg_net;
+   ```
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS pg_cron;
+   ```
+2. Open [`supabase/cron.sql`](supabase/cron.sql), replace the app domain (if
+   yours differs) and `PASTE-YOUR-SECRET-HERE` with your `WEBHOOK_SECRET`,
+   and run the schedule block.
 3. The final SELECT should show one row: the `ootl-tick` job, active, running
    every 15 seconds.
+4. After ~30 s, verify the ticks are landing (expect `200`s):
+   ```sql
+   SELECT status_code, created FROM net._http_response ORDER BY id DESC LIMIT 5;
+   ```
+   You can also open `https://YOUR-APP.vercel.app/api/tick?secret=YOUR-SECRET`
+   in a browser — `{"ok": true, "processed": 0}` proves the endpoint works.
 
 ## Verify
 
