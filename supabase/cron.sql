@@ -21,7 +21,6 @@
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
--- Remove a previously scheduled tick (ignore the error if it doesn't exist).
 DO $$
 BEGIN
     PERFORM cron.unschedule('ootl-tick');
@@ -34,10 +33,9 @@ SELECT cron.schedule(
     '15 seconds',
     $$
     SELECT net.http_get(
-        url := 'https://YOUR-APP.vercel.app/api/tick?secret=YOUR-WEBHOOK-SECRET'
+        url := 'https://out-of-the-loop-pearl.vercel.app/api/tick?secret=01248163264128256512102420484096'
     );
     $$
 );
 
--- Check it's registered:
 SELECT jobid, jobname, schedule, active FROM cron.job WHERE jobname = 'ootl-tick';
