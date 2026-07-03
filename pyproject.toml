@@ -9,9 +9,13 @@ description = "Out of the Loop -- a Telegram social-deduction party game bot"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+# Keep in sync with requirements.txt: some builders (e.g. Vercel) install from
+# pyproject.toml when it exists, so it must list the full runtime set.
 dependencies = [
     "python-telegram-bot[job-queue]>=21.4,<22",
     "python-dotenv>=1.0.1,<2",
+    "fastapi>=0.111,<1",
+    "psycopg[binary]>=3.1,<4",
 ]
 
 [project.optional-dependencies]
