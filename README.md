@@ -135,10 +135,15 @@ pytest
 
 ### Deploying / hosting
 
-The bot is a persistent long-polling **worker** (no web port). To host it on a
-VPS, Fly.io, Railway or Render, see **[DEPLOY.md](DEPLOY.md)** — it includes a
-`Dockerfile`, `docker-compose.yml`, a Render blueprint, and an explanation of
-why serverless platforms (e.g. Vercel) need a rewrite for this kind of bot.
+The bot ships with **two interchangeable runtimes** (same game logic, same
+content):
+
+1. **Serverless — Vercel + Supabase (free tiers)**: Telegram webhooks handled
+   by `/api/*` functions, all live state in Postgres, phase timers via a
+   Supabase `pg_cron` tick. Step-by-step guide:
+   **[DEPLOY_VERCEL.md](DEPLOY_VERCEL.md)**.
+2. **Persistent worker — long-polling** (`python run.py`): for a VPS, Fly.io,
+   Railway or Render. Guide: **[DEPLOY.md](DEPLOY.md)**.
 
 ```bash
 # Quickest self-host, on any machine with Docker:

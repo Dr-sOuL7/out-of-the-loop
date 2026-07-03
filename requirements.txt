@@ -3,3 +3,9 @@ python-telegram-bot[job-queue]>=21.4,<22
 
 # Load configuration from a .env file
 python-dotenv>=1.0.1,<2
+
+# --- Serverless (Vercel + Supabase) mode ------------------------------------
+# FastAPI app served by Vercel's Python runtime
+fastapi>=0.111,<1
+# Postgres driver for Supabase (binary wheels; async)
+psycopg[binary]>=3.1,<4

@@ -221,6 +221,11 @@ class GameEngine:
                     game.chat_id,
                     "🚪 The imposter left mid-round — this round is void. Moving on…",
                 )
+                # Exceptional path: force ROUND_END so the next-round timer (or
+                # match end) can proceed from a legal state.
+                game.state = MatchState.ROUND_END
+                if rnd is not None and rnd.round_id is not None:
+                    await self.repos.rounds.set_state(rnd.round_id, "VOIDED")
                 await self._after_round(context, game)
                 return
 

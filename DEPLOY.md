@@ -14,8 +14,10 @@ The bot runs as a **persistent worker** using Telegram **long-polling**:
 ➡️ **Host it on anything that runs a long-lived process/container:** a VPS,
 Fly.io, Railway, Render (background worker), etc.
 
-➡️ **It will NOT run on serverless/"web function" platforms like Vercel** as
-built — see [Why not Vercel](#why-not-vercel-or-other-serverless).
+➡️ For serverless hosting there is now a **dedicated Vercel + Supabase
+runtime** — see **[DEPLOY_VERCEL.md](DEPLOY_VERCEL.md)**. The notes below about
+serverless limits explain why that mode is architected differently
+(webhooks + Postgres state + cron tick) from this worker.
 
 ---
 

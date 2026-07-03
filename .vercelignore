@@ -1,0 +1,12 @@
+.venv
+venv
+tests
+data
+.pytest_cache
+__pycache__
+*.db
+Dockerfile
+docker-compose.yml
+Procfile
+render.yaml
+.github

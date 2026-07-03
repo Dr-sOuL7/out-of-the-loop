@@ -94,6 +94,11 @@ class GameState:
     # Message id of the lobby message (so join/leave can refresh the roster).
     lobby_message_id: int | None = None
 
+    # Serverless (webhook) mode only: which phase deadline is pending
+    # ('answer' | 'vote' | 'guess' | 'nextround'). The deadline timestamp
+    # itself is stored as a DB column so a cron tick can find expired games.
+    deadline_kind: str | None = None
+
     # -- player helpers ------------------------------------------------------
     @property
     def player_ids(self) -> list[int]:

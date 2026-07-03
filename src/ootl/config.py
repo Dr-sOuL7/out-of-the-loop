@@ -46,6 +46,13 @@ class Settings:
 
     log_level: str
 
+    # --- serverless (Vercel + Supabase) mode only -----------------------------
+    # Postgres connection string (Supabase "transaction pooler" URL).
+    database_url: str = ""
+    # Shared secret: verifies Telegram's webhook header and guards /api/tick
+    # and /api/admin endpoints.
+    webhook_secret: str = ""
+
     @property
     def is_configured(self) -> bool:
         return bool(self.bot_token)
@@ -76,4 +83,6 @@ def load_settings(env_file: str | os.PathLike[str] | None = None) -> Settings:
         word_history_window=_get_int("WORD_HISTORY_WINDOW", 40),
         question_history_window=_get_int("QUESTION_HISTORY_WINDOW", 20),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        database_url=os.getenv("DATABASE_URL", "").strip(),
+        webhook_secret=os.getenv("WEBHOOK_SECRET", "").strip(),
     )
