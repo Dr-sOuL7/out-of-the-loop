@@ -1,5 +1,8 @@
 # Root-anchored (leading /) so nothing inside src/ is ever matched.
 # NOTE: src/ootl/content/data/*.json MUST ship with the deployment.
+# pyproject.toml is excluded so Vercel installs from requirements.txt only
+# (one canonical dependency source for the serverless build).
+/pyproject.toml
 /.venv
 /venv
 /tests
