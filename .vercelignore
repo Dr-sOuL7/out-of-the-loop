@@ -1,12 +1,15 @@
-.venv
-venv
-tests
-data
-.pytest_cache
+# Root-anchored (leading /) so nothing inside src/ is ever matched.
+# NOTE: src/ootl/content/data/*.json MUST ship with the deployment.
+/.venv
+/venv
+/tests
+/data
+/.pytest_cache
+/.github
+/Dockerfile
+/docker-compose.yml
+/Procfile
+/render.yaml
 __pycache__
+*.pyc
 *.db
-Dockerfile
-docker-compose.yml
-Procfile
-render.yaml
-.github
