@@ -1,0 +1,18 @@
+# Render.com Blueprint. In Render: New -> Blueprint -> pick this repo.
+# It deploys the bot as a background worker with a 1 GB persistent disk.
+# Set BOT_TOKEN in the dashboard (it is marked sync:false = secret, not stored here).
+services:
+  - type: worker
+    name: out-of-the-loop-bot
+    runtime: docker
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: DATABASE_PATH
+        value: /data/ootl.db
+    disk:
+      name: ootl-data
+      mountPath: /data
+      sizeGB: 1

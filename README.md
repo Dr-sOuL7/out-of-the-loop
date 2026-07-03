@@ -133,6 +133,19 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
+### Deploying / hosting
+
+The bot is a persistent long-polling **worker** (no web port). To host it on a
+VPS, Fly.io, Railway or Render, see **[DEPLOY.md](DEPLOY.md)** — it includes a
+`Dockerfile`, `docker-compose.yml`, a Render blueprint, and an explanation of
+why serverless platforms (e.g. Vercel) need a rewrite for this kind of bot.
+
+```bash
+# Quickest self-host, on any machine with Docker:
+cp .env.example .env   # add your BOT_TOKEN
+docker compose up -d --build
+```
+
 ---
 
 ## Configuration reference

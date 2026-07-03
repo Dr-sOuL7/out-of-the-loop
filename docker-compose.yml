@@ -1,0 +1,17 @@
+# Run the bot on any machine with Docker:  docker compose up -d --build
+# Put your token in a .env file next to this one (see .env.example).
+services:
+  bot:
+    build: .
+    image: out-of-the-loop:latest
+    container_name: ootl-bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Persist the SQLite DB on the named volume below.
+      DATABASE_PATH: /data/ootl.db
+    volumes:
+      - ootl-data:/data
+
+volumes:
+  ootl-data:

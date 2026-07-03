@@ -59,6 +59,13 @@ async def _post_init(application: Application) -> None:
         counts["categories"],
     )
 
+    # If a webhook was ever configured for this bot, long-polling would fail
+    # with a conflict. Clear it so `run_polling` works on any host.
+    try:
+        await application.bot.delete_webhook(drop_pending_updates=True)
+    except Exception as exc:  # pragma: no cover - network dependent
+        logger.warning("Could not delete webhook: %s", exc)
+
     try:
         await application.bot.set_my_commands(_COMMANDS)
     except Exception as exc:  # pragma: no cover - cosmetic
