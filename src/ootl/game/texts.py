@@ -346,12 +346,17 @@ def reveal(
         lines.append("It's a <b>tie</b> — nobody is eliminated, so the imposter survives!")
 
     lines.append(f"\n🎭 The imposter was: <b>{esc(imposter_name)}</b>")
-    lines.append(f"🔑 The secret word was: <b>{esc(rnd.secret_word)}</b>")
 
     if imposter_caught:
+        # Word is only revealed once the imposter is caught. If they survive,
+        # it stays hidden until their final guess is resolved.
+        lines.append(f"🔑 The secret word was: <b>{esc(rnd.secret_word)}</b>")
         lines.append("\n✅ <b>Caught!</b> The clue-holders win this round.")
     else:
-        lines.append("\n😈 <b>The imposter survived!</b> One final guess incoming…")
+        lines.append(
+            "\n😈 <b>The imposter survived!</b> The secret word stays hidden — "
+            "one final guess incoming…"
+        )
     return "\n".join(lines)
 
 

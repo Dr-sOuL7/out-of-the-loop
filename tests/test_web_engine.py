@@ -265,12 +265,16 @@ async def test_imposter_survives_and_guesses(engine, conn, bot):
     game = await load_game(conn)
     assert game.state == MatchState.IMPOSTER_GUESS_PHASE
     assert game.deadline_kind == "guess"
+    # The word must NOT be revealed while the imposter still has to guess it.
+    assert word not in bot.group_text()
+    assert "stays hidden" in bot.group_text()
 
     await submit_answer(engine, imposter, word)  # correct guess via DM
     assert await load_game(conn) is None  # match over (1 round)
     text = bot.group_text()
     assert "survived" in text
     assert "correct!" in text.lower()
+    assert word in text  # now the word is out
 
     cur = await conn.execute(
         "SELECT SUM(points_awarded) AS p FROM scores WHERE user_id = %s", (imposter,)
