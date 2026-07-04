@@ -36,6 +36,10 @@ class Round:
     question: str
     imposter_id: int
 
+    # The 4 subjective answer options for this round's question (players pick
+    # one). Empty list = free-text answers (v1 worker mode).
+    options: list[str] = field(default_factory=list)
+
     # Content / DB identifiers (for usage tracking & persistence).
     word_id: int | None = None
     question_id: int | None = None

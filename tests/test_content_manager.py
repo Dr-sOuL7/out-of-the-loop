@@ -25,7 +25,8 @@ async def test_counts_are_populated(db):
     counts = await manager.counts()
     assert counts["categories"] == 10
     assert counts["words"] >= 400
-    assert counts["questions"] >= 100
+    # 80 questions, each with 4 authored options (see questions.json).
+    assert counts["questions"] >= 70
 
 
 async def test_pick_word_in_category(db):

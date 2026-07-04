@@ -187,12 +187,34 @@ def answer_forward(answer: str) -> str:
     return f"👀 Intercepted answer: <i>“{esc(answer)}”</i>"
 
 
+OPTION_LETTERS = ["A", "B", "C", "D"]
+
+
+def _options_block(options: list[str]) -> str:
+    return "\n".join(
+        f"{OPTION_LETTERS[i]}) {esc(opt)}" for i, opt in enumerate(options)
+    )
+
+
 def question_post(
-    question: str, category: str, round_no: int, total: int, seconds: int
+    question: str,
+    category: str,
+    round_no: int,
+    total: int,
+    seconds: int,
+    options: list[str] | None = None,
 ) -> str:
-    return (
+    head = (
         f"{E_SPY} <b>Round {round_no}/{total}</b> — category: <b>{esc(category)}</b>\n\n"
         f"❓ <b>{esc(question)}</b>\n\n"
+    )
+    if options:
+        return head + (
+            f"{_options_block(options)}\n\n"
+            f"🔘 <b>Pick your option in my DM</b> within <b>{seconds}s</b>. "
+            "Choices are hidden until the reveal!"
+        )
+    return head + (
         f"💬 <b>DM me your answer</b> (in our private chat) within "
         f"<b>{seconds}s</b>.\n"
         "Don't reveal the word — and don't answer here in the group!"
@@ -204,6 +226,23 @@ def answer_dm_prompt(question: str) -> str:
         "✍️ Your turn! Reply here with your answer to:\n\n"
         f"❓ <b>{esc(question)}</b>\n\n"
         "Keep it short and natural — one line is perfect."
+    )
+
+
+def answer_dm_options(question: str) -> str:
+    return (
+        "🔘 Your turn! Pick the option that fits best:\n\n"
+        f"❓ <b>{esc(question)}</b>\n\n"
+        "There's no right answer — but your pick says a lot. Choose wisely; "
+        "the first tap locks in."
+    )
+
+
+def answer_picked(question: str, option: str) -> str:
+    return (
+        f"❓ <b>{esc(question)}</b>\n\n"
+        f"🔒 You picked: <b>{esc(option)}</b>\n"
+        "Sit tight — all picks are revealed together."
     )
 
 

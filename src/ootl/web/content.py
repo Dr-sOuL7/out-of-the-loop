@@ -41,7 +41,7 @@ def load_bundle() -> dict:
         cat: [w for w in items if ok(w["text"])] for cat, items in words.items()
     }
     questions_by_cat = {
-        cat: [q for q in items if ok(q)] for cat, items in questions.items()
+        cat: [q for q in items if ok(q["q"])] for cat, items in questions.items()
     }
     return {
         "categories": categories,
@@ -80,18 +80,54 @@ async def pick_word(
 
 async def pick_question(
     conn: psycopg.AsyncConnection, category: str, window: int
-) -> SelectedQuestion:
-    bundle = load_bundle()["questions"]
-    pool = list(bundle.get(category, [])) + list(bundle.get("generic", []))
+) -> tuple[SelectedQuestion, list[str]]:
+    """Pick a question + its 4 options.
+
+    The Supabase ``quiz_questions`` table (user-editable, CSV-seeded) is the
+    primary source; the bundled JSON is the fallback when it's empty. Returns
+    ``(question, options)``.
+    """
+    pool: list[tuple[str, list[str], str]] = []  # (text, options, category)
+    try:
+        # Savepoint: if the table doesn't exist yet, roll back cleanly without
+        # poisoning the caller's enclosing transaction.
+        async with conn.transaction():
+            cur = await conn.execute(
+                """
+                SELECT question, option_a, option_b, option_c, option_d, category
+                FROM quiz_questions
+                WHERE active AND (category = %s OR category = 'generic')
+                """,
+                (category,),
+            )
+            rows = await cur.fetchall()
+        pool = [
+            (
+                r["question"],
+                [r["option_a"], r["option_b"], r["option_c"], r["option_d"]],
+                r["category"],
+            )
+            for r in rows
+        ]
+    except psycopg.Error:
+        pool = []
+
+    if not pool:
+        bundle = load_bundle()["questions"]
+        for cat in (category, "generic"):
+            for item in bundle.get(cat, []):
+                pool.append((item["q"], list(item["options"]), cat))
     if not pool:
         raise ContentError(f"No questions for category {category!r}.")
+
     recent = await pg.recently_used(conn, "question", window)
-    candidates = [q for q in pool if q not in recent] or pool
-    chosen = secrets.choice(candidates)
-    await pg.mark_content_used(conn, "question", chosen)
-    return SelectedQuestion(
+    candidates = [p for p in pool if p[0] not in recent] or pool
+    text, options, qcat = secrets.choice(candidates)
+    await pg.mark_content_used(conn, "question", text)
+    question = SelectedQuestion(
         question_id=0,
-        text=chosen,
-        category=category if chosen in bundle.get(category, []) else None,
+        text=text,
+        category=None if qcat == "generic" else qcat,
         difficulty=2,
     )
+    return question, options

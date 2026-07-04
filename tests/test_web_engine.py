@@ -99,7 +99,7 @@ async def conn(pg_uri):
             await connection.execute(stmt)
     for table in (
         "live_games", "player_chat", "scores", "votes", "answers",
-        "rounds", "matches", "users", "content_usage",
+        "rounds", "matches", "users", "content_usage", "quiz_questions",
     ):
         await connection.execute(f"TRUNCATE {table} CASCADE")
     yield connection
@@ -131,8 +131,17 @@ async def load_game(conn):
 
 
 async def submit_answer(engine, uid: int, text: str):
+    """Send a private text (used for the imposter's word guess)."""
     update = SimpleNamespace(effective_user=user_ns(uid))
     await engine._handle_private_text(update, text)
+
+
+async def pick_option(engine, conn, uid: int, idx: int = 0) -> str:
+    """Tap an answer option button (the answer-phase input)."""
+    game = await load_game(conn)
+    return await engine._handle_answer_tap(
+        uid, game.current_round.round_number, idx, None
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +156,8 @@ async def test_state_roundtrip(engine, conn):
     assert again.state == game.state
     assert again.current_round.secret_word == game.current_round.secret_word
     assert again.current_round.participant_ids == game.current_round.participant_ids
+    assert again.current_round.options == game.current_round.options
+    assert len(again.current_round.options) == 4
     assert again.scores == game.scores
 
 
@@ -204,8 +215,8 @@ async def test_full_round_imposter_caught(engine, conn, bot):
         else:
             assert rnd.secret_word in dm
 
-    for uid in (1, 2, 3):
-        await submit_answer(engine, uid, f"my answer {uid}")
+    for i, uid in enumerate((1, 2, 3)):
+        await pick_option(engine, conn, uid, idx=i)
     game = await load_game(conn)
     assert game.state == MatchState.VOTING_PHASE  # early-advanced
 
@@ -246,7 +257,7 @@ async def test_imposter_survives_and_guesses(engine, conn, bot):
     scapegoat = next(u for u in (1, 2, 3, 4) if u != imposter)
 
     for uid in (1, 2, 3, 4):
-        await submit_answer(engine, uid, "something vague")
+        await pick_option(engine, conn, uid)
     for uid in (1, 2, 3, 4):
         target = scapegoat if uid != scapegoat else imposter
         await engine._cast_vote(GROUP, uid, target)
@@ -280,7 +291,7 @@ async def test_tie_means_imposter_survives(engine, conn, bot):
     others = [u for u in (1, 2, 3, 4) if u != imposter]
 
     for uid in (1, 2, 3, 4):
-        await submit_answer(engine, uid, "hmm")
+        await pick_option(engine, conn, uid)
     # Force a 2-2 tie between the imposter and one clue-holder.
     await engine._cast_vote(GROUP, others[0], imposter)
     await engine._cast_vote(GROUP, others[1], imposter)
@@ -298,7 +309,7 @@ async def test_tie_means_imposter_survives(engine, conn, bot):
 async def test_tick_advances_expired_answer_phase(engine, conn, bot):
     await setup_lobby(engine, conn)
     await engine._cmd_startgame(GROUP, user_ns(1), ["1"])
-    await submit_answer(engine, 1, "only one answered")
+    await pick_option(engine, conn, 1)  # only one player answers
 
     processed = await engine.process_due()
     assert processed == 0  # deadline not reached yet
@@ -315,35 +326,53 @@ async def test_tick_advances_expired_answer_phase(engine, conn, bot):
     assert "Time's up" in bot.group_text()  # timeout is called out explicitly
 
 
-async def test_clue_holder_answers_forwarded_to_imposter(engine, conn, bot):
+async def test_option_picks_forwarded_to_imposter(engine, conn, bot):
     await setup_lobby(engine, conn)
     await engine._cmd_startgame(GROUP, user_ns(1), ["1"])
     game = await load_game(conn)
-    imposter = game.current_round.imposter_id
+    rnd = game.current_round
+    imposter = rnd.imposter_id
     clue_holders = [u for u in (1, 2, 3) if u != imposter]
 
-    # Imposter answers first: nothing is forwarded to anyone.
-    await submit_answer(engine, imposter, "bluffing early")
+    # Imposter picks first: nothing is forwarded to anyone.
+    toast = await pick_option(engine, conn, imposter, idx=3)
+    assert "Locked in" in toast
     for uid in (1, 2, 3):
         assert not any("Intercepted" in m for m in bot.dms.get(uid, []))
 
-    # Each clue-holder answer is forwarded (anonymously) to the imposter.
-    await submit_answer(engine, clue_holders[0], "smells great in the rain")
+    # A clue-holder's pick is forwarded (anonymously) to the imposter.
+    await pick_option(engine, conn, clue_holders[0], idx=1)
     imposter_dm = "\n".join(bot.dms[imposter])
     assert "Intercepted answer" in imposter_dm
-    assert "smells great in the rain" in imposter_dm
-    # The forward names nobody.
-    assert f"P{clue_holders[0]}" not in imposter_dm
+    assert rnd.options[1] in imposter_dm
+    assert f"P{clue_holders[0]}" not in imposter_dm  # no names leaked
 
-    await submit_answer(engine, clue_holders[1], "keeps me dry")
-    imposter_dm = "\n".join(bot.dms[imposter])
-    assert "keeps me dry" in imposter_dm
+    # Double-pick is rejected; picks lock on first tap.
+    toast = await pick_option(engine, conn, clue_holders[0], idx=2)
+    assert "already picked" in toast
+
+    await pick_option(engine, conn, clue_holders[1], idx=0)
     # Clue-holders never receive forwards.
     for uid in clue_holders:
         assert not any("Intercepted" in m for m in bot.dms.get(uid, []))
-    # All three answered -> voting opened.
+    # All three answered -> voting opened, reveal contains the option text.
     game = await load_game(conn)
     assert game.state == MatchState.VOTING_PHASE
+    assert rnd.options[1] in bot.group_text()
+
+
+async def test_quiz_questions_table_takes_priority(engine, conn, bot):
+    await conn.execute(
+        """
+        INSERT INTO quiz_questions (category, question, option_a, option_b, option_c, option_d)
+        VALUES ('generic', 'CUSTOM QUESTION FROM TABLE?', 'One', 'Two', 'Three', 'Four')
+        """
+    )
+    await setup_lobby(engine, conn)
+    await engine._cmd_startgame(GROUP, user_ns(1), ["1"])
+    game = await load_game(conn)
+    assert game.current_round.question == "CUSTOM QUESTION FROM TABLE?"
+    assert game.current_round.options == ["One", "Two", "Three", "Four"]
 
 
 async def test_tick_guess_timeout_scores_without_bonus(engine, conn, bot):
@@ -353,7 +382,7 @@ async def test_tick_guess_timeout_scores_without_bonus(engine, conn, bot):
     imposter = game.current_round.imposter_id
     scapegoat = next(u for u in (1, 2, 3, 4) if u != imposter)
     for uid in (1, 2, 3, 4):
-        await submit_answer(engine, uid, "x")
+        await pick_option(engine, conn, uid)
     for uid in (1, 2, 3, 4):
         target = scapegoat if uid != scapegoat else imposter
         await engine._cast_vote(GROUP, uid, target)
@@ -380,7 +409,7 @@ async def test_next_round_via_tick(engine, conn, bot):
     game = await load_game(conn)
     imposter = game.current_round.imposter_id
     for uid in (1, 2, 3):
-        await submit_answer(engine, uid, "a")
+        await pick_option(engine, conn, uid)
     for uid in (1, 2, 3):
         target = imposter if uid != imposter else next(u for u in (1, 2, 3) if u != uid)
         await engine._cast_vote(GROUP, uid, target)
@@ -450,7 +479,7 @@ async def test_vote_validation(engine, conn):
     await setup_lobby(engine, conn)
     await engine._cmd_startgame(GROUP, user_ns(1), ["1"])
     for uid in (1, 2, 3):
-        await submit_answer(engine, uid, "y")
+        await pick_option(engine, conn, uid)
     assert "yourself" in await engine._cast_vote(GROUP, 1, 1)
     assert "isn't in this round" in await engine._cast_vote(GROUP, 1, 999)
     assert "not playing" in await engine._cast_vote(GROUP, 999, 1)

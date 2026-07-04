@@ -352,6 +352,16 @@ class WebEngine:
             toast = await self._cmd_leave(chat_id, user, [])
         elif data == "start":
             toast = await self._cmd_startgame(chat_id, user, [])
+        elif data.startswith("ans:"):
+            # Option buttons live in the player's DM, so the game chat comes
+            # from the player index, not the callback's chat.
+            try:
+                _, round_no, idx = data.split(":")
+                toast = await self._handle_answer_tap(
+                    user.id, int(round_no), int(idx), message
+                )
+            except (ValueError, IndexError):
+                toast = "Invalid choice."
         elif data.startswith("vote:"):
             try:
                 target_id = int(data.split(":", 1)[1])
@@ -390,7 +400,7 @@ class WebEngine:
             word = await content.pick_word(
                 self.conn, category, self.settings.word_history_window
             )
-            question = await content.pick_question(
+            question, options = await content.pick_question(
                 self.conn, category, self.settings.question_history_window
             )
         except ContentError as exc:
@@ -406,6 +416,7 @@ class WebEngine:
             category=category,
             secret_word=word.text,
             question=question.text,
+            options=options,
             imposter_id=imposter_id,
             participant_ids=list(participants),
         )
@@ -429,10 +440,14 @@ class WebEngine:
                 rnd.round_number,
                 game.total_rounds,
                 self.settings.answer_time_seconds,
+                options=rnd.options,
             ),
         )
+        keyboard = _options_keyboard(rnd)
         for uid in rnd.participant_ids:
-            await self._dm(uid, texts.answer_dm_prompt(rnd.question))
+            await self._dm(
+                uid, texts.answer_dm_options(rnd.question), reply_markup=keyboard
+            )
 
         self._transition(game, MatchState.ANSWER_COLLECTION)
         await pg.set_round_state(self.conn, rnd.round_id, MatchState.ANSWER_COLLECTION.value)
@@ -498,7 +513,11 @@ class WebEngine:
                 game.state == MatchState.ANSWER_COLLECTION
                 and user.id in rnd.participant_ids
             ):
-                await self._record_answer(game, rnd, user.id, text)
+                await self._dm(
+                    user.id,
+                    "🔘 This round uses <b>options</b> — tap one of the buttons "
+                    "I sent above instead of typing!",
+                )
             elif (
                 game.state == MatchState.IMPOSTER_GUESS_PHASE
                 and user.id == rnd.imposter_id
@@ -507,29 +526,56 @@ class WebEngine:
             else:
                 await self._dm(user.id, texts.not_your_turn_to_answer())
 
-    async def _record_answer(
-        self, game: GameState, rnd: Round, user_id: int, text: str
-    ) -> None:
-        if user_id in rnd.answers:
-            await self._dm(user_id, "You've already answered this round. ✅")
-            return
-        answer = truncate(text, ANSWER_CHAR_LIMIT)
-        rnd.answers[user_id] = answer
-        rnd.answer_order.append(user_id)
-        await pg.save_answer(self.conn, rnd.round_id, user_id, answer)
-        await self._dm(user_id, texts.answer_received(answer))
-        # Live intel: clue-holder answers are forwarded (anonymously) to the
-        # imposter's DM so they can infer the word and blend in.
-        if user_id != rnd.imposter_id and rnd.imposter_id in rnd.participant_ids:
-            await self._dm(rnd.imposter_id, texts.answer_forward(answer))
-        await self._send(
-            game.chat_id,
-            texts.answer_progress(len(rnd.answers), len(rnd.participant_ids)),
-        )
-        if rnd.all_answers_in():
-            await self._open_voting(game)
-        else:
-            await self._save(game)
+    async def _handle_answer_tap(
+        self, user_id: int, round_no: int, idx: int, dm_message
+    ) -> str:
+        chat_id = await pg.chat_for_player(self.conn, user_id)
+        if chat_id is None:
+            return "You're not in an active game."
+        async with self.conn.transaction():
+            game = await self._load_locked(chat_id)
+            rnd = game.current_round if game else None
+            if (
+                game is None
+                or rnd is None
+                or game.state != MatchState.ANSWER_COLLECTION
+                or rnd.round_number != round_no
+            ):
+                return "⏰ Too late — that answer phase is closed."
+            if user_id not in rnd.participant_ids:
+                return "You're not playing in this round."
+            if user_id in rnd.answers:
+                return "You've already picked — no take-backs!"
+            if not (0 <= idx < len(rnd.options)):
+                return "Invalid choice."
+            answer = rnd.options[idx]
+            rnd.answers[user_id] = answer
+            rnd.answer_order.append(user_id)
+            await pg.save_answer(self.conn, rnd.round_id, user_id, answer)
+            # Lock the DM message: replace the buttons with the confirmation.
+            if dm_message is not None:
+                try:
+                    await self.bot.edit_message_text(
+                        chat_id=dm_message.chat.id,
+                        message_id=dm_message.message_id,
+                        text=texts.answer_picked(rnd.question, answer),
+                        parse_mode=ParseMode.HTML,
+                    )
+                except TelegramError:
+                    pass
+            # Live intel: clue-holder picks are forwarded (anonymously) to the
+            # imposter's DM so they can infer the word and blend in.
+            if user_id != rnd.imposter_id and rnd.imposter_id in rnd.participant_ids:
+                await self._dm(rnd.imposter_id, texts.answer_forward(answer))
+            await self._send(
+                game.chat_id,
+                texts.answer_progress(len(rnd.answers), len(rnd.participant_ids)),
+            )
+            if rnd.all_answers_in():
+                await self._open_voting(game)
+            else:
+                await self._save(game)
+        return f"Locked in: {answer}"
 
     async def _open_voting(self, game: GameState, timed_out: bool = False) -> None:
         rnd = game.current_round
@@ -865,6 +911,17 @@ def _lobby_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton("Start ▶️", callback_data="start")],
         ]
     )
+
+
+def _options_keyboard(rnd: Round) -> InlineKeyboardMarkup:
+    """One button per answer option, tapped in the player's DM."""
+    rows = []
+    for i, opt in enumerate(rnd.options):
+        label = f"{texts.OPTION_LETTERS[i]}) {truncate(opt, 28)}"
+        rows.append(
+            [InlineKeyboardButton(label, callback_data=f"ans:{rnd.round_number}:{i}")]
+        )
+    return InlineKeyboardMarkup(rows)
 
 
 def _vote_keyboard(game: GameState, rnd: Round) -> InlineKeyboardMarkup:

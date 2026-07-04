@@ -98,8 +98,27 @@ CREATE TABLE IF NOT EXISTS scores (
 );
 
 -- ---------------------------------------------------------------------------
--- Content usage tracking (words/questions live in JSON files shipped with the
--- app; this table only records usage for anti-repetition + stats).
+-- Editable question bank: each question ships 4 subjective options players
+-- pick from. Seed it by importing supabase/quiz_questions.csv (Table Editor ->
+-- quiz_questions -> Insert -> Import data from CSV). Edits take effect on the
+-- next round -- no redeploy. If this table is empty the app falls back to the
+-- question bank bundled with the code.
+-- category = a category key ('food', 'movies', ...) or 'generic' (any).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS quiz_questions (
+    question_id  BIGSERIAL PRIMARY KEY,
+    category     TEXT NOT NULL DEFAULT 'generic',
+    question     TEXT NOT NULL UNIQUE,
+    option_a     TEXT NOT NULL,
+    option_b     TEXT NOT NULL,
+    option_c     TEXT NOT NULL,
+    option_d     TEXT NOT NULL,
+    active       BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- ---------------------------------------------------------------------------
+-- Content usage tracking (words live in JSON files shipped with the app;
+-- this table only records usage for anti-repetition + stats).
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS content_usage (
     kind          TEXT NOT NULL,      -- 'word' | 'question'

@@ -65,9 +65,16 @@ def validate_content() -> list[str]:
                 problems.append(f"word '{text}' has invalid difficulty {diff}")
 
     questions = _load_json("questions.json")
-    for cat in questions:
+    for cat, items in questions.items():
         if cat != "generic" and cat not in category_keys:
             problems.append(f"questions.json uses unknown category '{cat}'")
+        for item in items:
+            if not item.get("q", "").strip():
+                problems.append(f"empty question text in category '{cat}'")
+            if len(item.get("options", [])) != 4:
+                problems.append(
+                    f"question '{item.get('q', '?')}' must have exactly 4 options"
+                )
 
     return problems
 
@@ -133,11 +140,13 @@ async def import_content(db: Database, reset: bool = False) -> dict[str, int]:
             n_words += 1
 
     # -- questions -----------------------------------------------------------
+    # The SQLite path stores the question text only (the v1 worker still plays
+    # free-text); options live in the JSON / the Postgres quiz_questions table.
     n_questions = 0
     for cat, items in questions.items():
         category = None if cat == "generic" else cat
-        for text in items:
-            text = text.strip()
+        for item in items:
+            text = item["q"].strip()
             active = 0 if _is_banned(text, banned_terms) else 1
             await db.execute(
                 """

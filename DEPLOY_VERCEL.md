@@ -125,6 +125,27 @@ enforced two ways:
   advances any game whose deadline passed. So a timeout can land up to ~15 s
   late — fine for a party game.
 
+## Editing questions & options (no redeploy needed)
+
+Questions come with **4 subjective options** players pick from. They live in
+the `quiz_questions` table in Supabase — the app reads it every round, so
+edits are live immediately. The bundled JSON only serves as a fallback while
+the table is empty.
+
+**One-time seed:**
+1. Make sure the table exists (re-run [`supabase/schema.sql`](supabase/schema.sql) — it's idempotent).
+2. Supabase → **Table Editor** → `quiz_questions` → **Insert → Import data from CSV** → upload [`supabase/quiz_questions.csv`](supabase/quiz_questions.csv).
+
+**Ongoing editing:** add/edit rows straight in the Table Editor (or re-import a
+CSV you maintain in a spreadsheet). Columns: `category` (a category key or
+`generic`), `question`, `option_a`–`option_d`, `active` (set false to retire a
+question without deleting it).
+
+Authoring rules that keep the game fair: options must make sense for **every
+word in the category** (they belong to the question, not the word), stay
+subjective (no "correct" one), and each should span a different vibe so picks
+carry signal.
+
 ## Free-tier notes & limits
 
 - **Supabase free** pauses projects after ~1 week with **no activity**; the
