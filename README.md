@@ -161,7 +161,7 @@ All settings live in `.env` (see `.env.example`):
 | --- | --- | --- |
 | `BOT_TOKEN` | — | **Required.** Token from @BotFather. |
 | `DATABASE_PATH` | `data/ootl.db` | SQLite file location. |
-| `ANSWER_TIME_SECONDS` | `90` | Answer-collection window. |
+| `ANSWER_TIME_SECONDS` | `150` | Answer-collection window. |
 | `VOTE_TIME_SECONDS` | `60` | Voting window. |
 | `GUESS_TIME_SECONDS` | `45` | Imposter final-guess window. |
 | `MIN_PLAYERS` | `3` | Minimum players to start. |

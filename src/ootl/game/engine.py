@@ -479,6 +479,10 @@ class GameEngine:
             rnd.answer_order.append(user.id)
             await self.repos.answers.save(rnd.round_id, user.id, answer)
             await self._dm(context, user.id, texts.answer_received(answer))
+            # Live intel: clue-holder answers are forwarded (anonymously) to
+            # the imposter's DM so they can infer the word and blend in.
+            if user.id != rnd.imposter_id and rnd.imposter_id in rnd.participant_ids:
+                await self._dm(context, rnd.imposter_id, texts.answer_forward(answer))
             await self._send(
                 context,
                 game.chat_id,
@@ -493,17 +497,24 @@ class GameEngine:
         async with self._lock(game.chat_id):
             if game.state != MatchState.ANSWER_COLLECTION:
                 return
-            await self._open_voting(context, game)
+            await self._open_voting(context, game, timed_out=True)
 
     async def _open_voting(
-        self, context: ContextTypes.DEFAULT_TYPE, game: GameState
+        self,
+        context: ContextTypes.DEFAULT_TYPE,
+        game: GameState,
+        timed_out: bool = False,
     ) -> None:
         rnd = game.current_round
         if rnd is None:
             return
         self._cancel_job(context, game)
         # Reveal answers.
-        await self._send(context, game.chat_id, texts.answers_revealed(game, rnd))
+        await self._send(
+            context,
+            game.chat_id,
+            texts.answers_revealed(game, rnd, timed_out=timed_out),
+        )
 
         if not self._transition(game, MatchState.VOTING_PHASE):
             return

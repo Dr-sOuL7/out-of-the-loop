@@ -518,6 +518,10 @@ class WebEngine:
         rnd.answer_order.append(user_id)
         await pg.save_answer(self.conn, rnd.round_id, user_id, answer)
         await self._dm(user_id, texts.answer_received(answer))
+        # Live intel: clue-holder answers are forwarded (anonymously) to the
+        # imposter's DM so they can infer the word and blend in.
+        if user_id != rnd.imposter_id and rnd.imposter_id in rnd.participant_ids:
+            await self._dm(rnd.imposter_id, texts.answer_forward(answer))
         await self._send(
             game.chat_id,
             texts.answer_progress(len(rnd.answers), len(rnd.participant_ids)),
@@ -527,11 +531,13 @@ class WebEngine:
         else:
             await self._save(game)
 
-    async def _open_voting(self, game: GameState) -> None:
+    async def _open_voting(self, game: GameState, timed_out: bool = False) -> None:
         rnd = game.current_round
         if rnd is None:
             return
-        await self._send(game.chat_id, texts.answers_revealed(game, rnd))
+        await self._send(
+            game.chat_id, texts.answers_revealed(game, rnd, timed_out=timed_out)
+        )
         if not self._transition(game, MatchState.VOTING_PHASE):
             await self._save(game)
             return
@@ -811,7 +817,7 @@ class WebEngine:
         kind = game.deadline_kind
         rnd = game.current_round
         if kind == "answer" and game.state == MatchState.ANSWER_COLLECTION:
-            await self._open_voting(game)
+            await self._open_voting(game, timed_out=True)
         elif kind == "vote" and game.state == MatchState.VOTING_PHASE:
             await self._close_voting(game)
         elif kind == "guess" and game.state == MatchState.IMPOSTER_GUESS_PHASE:

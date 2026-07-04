@@ -312,6 +312,38 @@ async def test_tick_advances_expired_answer_phase(engine, conn, bot):
     assert game.state == MatchState.VOTING_PHASE
     assert game.deadline_kind == "vote"
     assert "(no answer)" in bot.group_text()
+    assert "Time's up" in bot.group_text()  # timeout is called out explicitly
+
+
+async def test_clue_holder_answers_forwarded_to_imposter(engine, conn, bot):
+    await setup_lobby(engine, conn)
+    await engine._cmd_startgame(GROUP, user_ns(1), ["1"])
+    game = await load_game(conn)
+    imposter = game.current_round.imposter_id
+    clue_holders = [u for u in (1, 2, 3) if u != imposter]
+
+    # Imposter answers first: nothing is forwarded to anyone.
+    await submit_answer(engine, imposter, "bluffing early")
+    for uid in (1, 2, 3):
+        assert not any("Intercepted" in m for m in bot.dms.get(uid, []))
+
+    # Each clue-holder answer is forwarded (anonymously) to the imposter.
+    await submit_answer(engine, clue_holders[0], "smells great in the rain")
+    imposter_dm = "\n".join(bot.dms[imposter])
+    assert "Intercepted answer" in imposter_dm
+    assert "smells great in the rain" in imposter_dm
+    # The forward names nobody.
+    assert f"P{clue_holders[0]}" not in imposter_dm
+
+    await submit_answer(engine, clue_holders[1], "keeps me dry")
+    imposter_dm = "\n".join(bot.dms[imposter])
+    assert "keeps me dry" in imposter_dm
+    # Clue-holders never receive forwards.
+    for uid in clue_holders:
+        assert not any("Intercepted" in m for m in bot.dms.get(uid, []))
+    # All three answered -> voting opened.
+    game = await load_game(conn)
+    assert game.state == MatchState.VOTING_PHASE
 
 
 async def test_tick_guess_timeout_scores_without_bonus(engine, conn, bot):

@@ -74,7 +74,7 @@ def load_settings(env_file: str | os.PathLike[str] | None = None) -> Settings:
     return Settings(
         bot_token=os.getenv("BOT_TOKEN", "").strip(),
         database_path=database_path,
-        answer_time_seconds=_get_int("ANSWER_TIME_SECONDS", 90),
+        answer_time_seconds=_get_int("ANSWER_TIME_SECONDS", 150),
         vote_time_seconds=_get_int("VOTE_TIME_SECONDS", 60),
         guess_time_seconds=_get_int("GUESS_TIME_SECONDS", 45),
         min_players=_get_int("MIN_PLAYERS", 3),

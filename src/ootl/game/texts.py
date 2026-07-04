@@ -174,10 +174,17 @@ def role_imposter(category: str, round_no: int, total: int) -> str:
         f"🎭 <b>Round {round_no}/{total}</b>\n\n"
         "You are the <b>IMPOSTER</b>. You're <i>out of the loop</i> — you don't "
         "know the secret word!\n\n"
-        f"The category is <b>{esc(category)}</b>. Read the others' answers, blend "
-        "in, and try not to get caught. If you survive the vote, you'll get one "
-        "chance to guess the word."
+        f"The category is <b>{esc(category)}</b>.\n\n"
+        "🕵️ I'll secretly forward the other players' answers to you here as "
+        "they come in — use them to work out the word and blend in. Send me "
+        "your own answer any time before the timer runs out. If you survive "
+        "the vote, you'll get one chance to guess the word."
     )
+
+
+def answer_forward(answer: str) -> str:
+    """Live intel line DM'd to the imposter as clue-holders answer."""
+    return f"👀 Intercepted answer: <i>“{esc(answer)}”</i>"
 
 
 def question_post(
@@ -223,8 +230,11 @@ def answer_progress(done: int, total: int) -> str:
     return f"📝 Answers in: <b>{done}/{total}</b>"
 
 
-def answers_revealed(game: GameState, rnd: Round) -> str:
-    lines = [f"{E_SPY} <b>Answers are in!</b>\n"]
+def answers_revealed(game: GameState, rnd: Round, timed_out: bool = False) -> str:
+    if timed_out:
+        lines = ["⏰ <b>Time's up!</b> Locking in the answers we have…\n"]
+    else:
+        lines = [f"{E_SPY} <b>Answers are in!</b>\n"]
     # Reveal in submission order for a little extra intrigue.
     order = rnd.answer_order or list(rnd.answers.keys())
     for i, uid in enumerate(order, start=1):
