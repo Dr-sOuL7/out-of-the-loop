@@ -60,6 +60,18 @@ def random_category() -> str:
     return secrets.choice(load_bundle()["category_keys"])
 
 
+def decoy_words(category: str, exclude: str, count: int = 3) -> list[str]:
+    """Random distinct same-category words for the imposter's guess options."""
+    pool = [
+        w["text"]
+        for w in load_bundle()["words"].get(category, [])
+        if w["text"].lower() != exclude.lower()
+    ]
+    if len(pool) <= count:
+        return pool
+    return secrets.SystemRandom().sample(pool, count)
+
+
 async def pick_word(
     conn: psycopg.AsyncConnection, category: str, window: int
 ) -> SelectedWord:

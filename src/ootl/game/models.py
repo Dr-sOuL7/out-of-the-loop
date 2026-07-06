@@ -6,6 +6,7 @@ exists per group chat while a lobby or match is active.
 """
 from __future__ import annotations
 
+import secrets
 import time
 from dataclasses import dataclass, field
 
@@ -26,6 +27,25 @@ class Player:
         return self.display_name
 
 
+def choose_imposter(participant_ids: list[int], history: list[int]) -> int:
+    """Pick the round's imposter fairly.
+
+    Random, but weighted for fairness within a match: only players who have
+    been the imposter the *fewest* times so far are eligible, and the previous
+    round's imposter is excluded whenever another candidate exists — so the
+    role rotates instead of streaking on one player.
+    """
+    if not participant_ids:
+        raise ValueError("choose_imposter: no participants")
+    counts = {uid: history.count(uid) for uid in participant_ids}
+    fewest = min(counts.values())
+    candidates = [uid for uid in participant_ids if counts[uid] == fewest]
+    previous = history[-1] if history else None
+    if previous in candidates and len(candidates) > 1:
+        candidates = [uid for uid in candidates if uid != previous]
+    return secrets.choice(candidates)
+
+
 @dataclass
 class Round:
     """State of a single round."""
@@ -39,6 +59,10 @@ class Round:
     # The 4 subjective answer options for this round's question (players pick
     # one). Empty list = free-text answers (v1 worker mode).
     options: list[str] = field(default_factory=list)
+
+    # The 4 word options for the imposter's final guess (secret word + 3
+    # decoys, shuffled). Empty list = free-text guessing.
+    guess_options: list[str] = field(default_factory=list)
 
     # Content / DB identifiers (for usage tracking & persistence).
     word_id: int | None = None
@@ -90,6 +114,10 @@ class GameState:
     scores: dict[int, int] = field(default_factory=dict)      # user_id -> points
     current_round: Round | None = None
     created_at: float = field(default_factory=time.monotonic)
+
+    # user_ids that have been the imposter this match, in round order (drives
+    # fair role rotation via :func:`choose_imposter`).
+    imposter_history: list[int] = field(default_factory=list)
 
     # Name of the currently-scheduled phase-deadline job (so it can be cancelled
     # when a phase ends early). One phase timer is active at a time.

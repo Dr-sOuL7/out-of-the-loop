@@ -45,12 +45,15 @@ def help_text() -> str:
         "• /players — show who's in the lobby\n"
         "• /startgame [rounds] — host starts the match\n"
         "• /score — current scoreboard\n"
-        "• /leaderboard — all-time stats for this group\n"
-        "• /abort — host cancels the match\n\n"
+        "• /leaderboard — all-time player stats\n"
+        "• /abort — host cancels the match\n"
+        "• /rules — full rules and scoring\n\n"
         "<b>In private chat with me</b>\n"
         "• /start — register so I can DM you your secret role\n"
-        "• You'll <b>DM me your answer</b> each round, and your final guess if "
-        "you're the imposter.\n\n"
+        "• Each round you'll <b>answer in our private chat</b> — tap one of the "
+        "option buttons I send (or type your answer if there are no buttons).\n"
+        "• If you're the imposter and survive the vote, you'll make your final "
+        "guess at the secret word there too.\n\n"
         "<b>Tip:</b> every player must press <b>Start</b> in a private chat with "
         "me first, or I can't send them the secret word!"
     )
@@ -63,7 +66,9 @@ def rules_text() -> str:
         "say, spell or obviously hint the word.\n"
         "• The <b>imposter</b> doesn't know the word and must blend in.\n"
         "• One answer, one vote and (if you're the imposter) one guess per round.\n"
-        "• No editing answers after sending.\n\n"
+        "• Answers lock in when sent — no take-backs.\n"
+        "• If the imposter survives the vote, they pick the secret word from "
+        "<b>4 options</b> for a bonus point.\n\n"
         "<b>Scoring</b>\n"
         "• Imposter voted out → each clue-holder who voted correctly: <b>+1</b>\n"
         "• Imposter survives the vote → imposter: <b>+2</b>\n"
@@ -176,9 +181,9 @@ def role_imposter(category: str, round_no: int, total: int) -> str:
         "know the secret word!\n\n"
         f"The category is <b>{esc(category)}</b>.\n\n"
         "🕵️ I'll secretly forward the other players' answers to you here as "
-        "they come in — use them to work out the word and blend in. Send me "
-        "your own answer any time before the timer runs out. If you survive "
-        "the vote, you'll get one chance to guess the word."
+        "they come in — use them to work out the word and blend in. Answer "
+        "the question like everyone else before the timer runs out. If you "
+        "survive the vote, you'll get one final chance to pick the secret word."
     )
 
 
@@ -369,10 +374,34 @@ def imposter_guess_prompt(category: str, seconds: int) -> str:
     )
 
 
-def imposter_guess_announce(name: str, seconds: int) -> str:
+def imposter_guess_prompt_options(category: str, seconds: int) -> str:
+    return (
+        "😈 You survived the vote!\n\n"
+        "One last chance: which of these is the <b>secret word</b>? "
+        f"(category: <b>{esc(category)}</b>)\n\n"
+        f"Tap your pick below within <b>{seconds}s</b>. One attempt only — "
+        "the first tap locks in. Get it right for a bonus point!"
+    )
+
+
+def imposter_guess_announce(
+    name: str, seconds: int, option_count: int | None = None
+) -> str:
+    if option_count:
+        return (
+            f"😈 {esc(name)} survived and is now picking the secret word from "
+            f"<b>{option_count}</b> options (within {seconds}s)…"
+        )
     return (
         f"😈 {esc(name)} survived and is making their final guess "
         f"(within {seconds}s)…"
+    )
+
+
+def guess_use_buttons() -> str:
+    return (
+        "🔘 The final guess uses <b>options</b> — tap one of the word buttons "
+        "I sent above instead of typing!"
     )
 
 

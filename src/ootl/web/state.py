@@ -26,6 +26,7 @@ def game_to_json(game: GameState) -> dict:
         "scores": {str(uid): pts for uid, pts in game.scores.items()},
         "lobby_message_id": game.lobby_message_id,
         "deadline_kind": game.deadline_kind,
+        "imposter_history": game.imposter_history,
         "round": _round_to_json(game.current_round),
     }
 
@@ -48,6 +49,7 @@ def game_from_json(data: dict) -> GameState:
             username=p.get("username"),
         )
     game.scores = {int(uid): pts for uid, pts in data.get("scores", {}).items()}
+    game.imposter_history = list(data.get("imposter_history", []))
     game.current_round = _round_from_json(data.get("round"))
     return game
 
@@ -61,6 +63,7 @@ def _round_to_json(rnd: Round | None) -> dict | None:
         "secret_word": rnd.secret_word,
         "question": rnd.question,
         "options": rnd.options,
+        "guess_options": rnd.guess_options,
         "imposter_id": rnd.imposter_id,
         "round_id": rnd.round_id,
         "participant_ids": rnd.participant_ids,
@@ -84,6 +87,7 @@ def _round_from_json(data: dict | None) -> Round | None:
         secret_word=data["secret_word"],
         question=data["question"],
         options=list(data.get("options", [])),
+        guess_options=list(data.get("guess_options", [])),
         imposter_id=data["imposter_id"],
         round_id=data.get("round_id"),
         participant_ids=list(data.get("participant_ids", [])),

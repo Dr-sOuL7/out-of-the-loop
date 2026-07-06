@@ -139,6 +139,18 @@ class ContentManager:
             difficulty=row["difficulty"],
         )
 
+    async def decoy_words(
+        self, category: str, exclude: str, count: int = 3
+    ) -> list[str]:
+        """Random distinct same-category words for the imposter's guess options."""
+        rows = await self._db.fetchall(
+            "SELECT text FROM content_words "
+            "WHERE active = 1 AND category = ? AND lower(text) != lower(?) "
+            "ORDER BY RANDOM() LIMIT ?",
+            (category, exclude, count),
+        )
+        return [r["text"] for r in rows]
+
     # -- internals -----------------------------------------------------------
     async def _pick_least_recent(
         self,

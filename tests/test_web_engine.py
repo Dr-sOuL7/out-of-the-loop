@@ -159,6 +159,9 @@ async def test_state_roundtrip(engine, conn):
     assert again.current_round.options == game.current_round.options
     assert len(again.current_round.options) == 4
     assert again.scores == game.scores
+    assert again.imposter_history == game.imposter_history
+    assert game.imposter_history == [game.current_round.imposter_id]
+    assert again.current_round.guess_options == game.current_round.guess_options
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +272,22 @@ async def test_imposter_survives_and_guesses(engine, conn, bot):
     assert word not in bot.group_text()
     assert "stays hidden" in bot.group_text()
 
-    await submit_answer(engine, imposter, word)  # correct guess via DM
+    # The guess is now a 4-option pick: the secret word + 3 decoys.
+    opts = game.current_round.guess_options
+    assert len(opts) == 4
+    assert word in opts
+    assert len(set(opts)) == 4
+
+    # Typing during the guess phase nudges to the buttons, consumes nothing.
+    await submit_answer(engine, imposter, word)
+    assert any("tap one of the word buttons" in m for m in bot.dms[imposter])
+    game = await load_game(conn)
+    assert game.state == MatchState.IMPOSTER_GUESS_PHASE
+
+    toast = await engine._handle_guess_tap(
+        imposter, game.current_round.round_number, opts.index(word), None
+    )
+    assert "Correct" in toast
     assert await load_game(conn) is None  # match over (1 round)
     text = bot.group_text()
     assert "survived" in text
@@ -282,6 +300,77 @@ async def test_imposter_survives_and_guesses(engine, conn, bot):
     assert (await cur.fetchone())["p"] == 3  # +2 survive, +1 guess
     cur = await conn.execute("SELECT wins FROM users WHERE user_id = %s", (imposter,))
     assert (await cur.fetchone())["wins"] == 1
+
+
+async def test_imposter_wrong_guess_no_bonus(engine, conn, bot):
+    await setup_lobby(engine, conn, uids=(1, 2, 3, 4))
+    await engine._cmd_startgame(GROUP, user_ns(1), ["1"])
+    game = await load_game(conn)
+    imposter = game.current_round.imposter_id
+    word = game.current_round.secret_word
+    scapegoat = next(u for u in (1, 2, 3, 4) if u != imposter)
+
+    for uid in (1, 2, 3, 4):
+        await pick_option(engine, conn, uid)
+    for uid in (1, 2, 3, 4):
+        target = scapegoat if uid != scapegoat else imposter
+        await engine._cast_vote(GROUP, uid, target)
+
+    game = await load_game(conn)
+    opts = game.current_round.guess_options
+    wrong_idx = next(i for i, o in enumerate(opts) if o != word)
+    # A clue-holder can't tap the imposter's buttons.
+    other = next(u for u in (1, 2, 3, 4) if u != imposter)
+    toast = await engine._handle_guess_tap(
+        other, game.current_round.round_number, wrong_idx, None
+    )
+    assert "Only the imposter" in toast
+
+    toast = await engine._handle_guess_tap(
+        imposter, game.current_round.round_number, wrong_idx, None
+    )
+    assert "Wrong" in toast
+    assert await load_game(conn) is None  # match over (1 round)
+    assert word in bot.group_text()  # word revealed after the failed guess
+    cur = await conn.execute(
+        "SELECT SUM(points_awarded) AS p FROM scores WHERE user_id = %s", (imposter,)
+    )
+    assert (await cur.fetchone())["p"] == 2  # +2 survive, no guess bonus
+
+
+# ---------------------------------------------------------------------------
+# Imposter rotation: never the same player twice in a row
+# ---------------------------------------------------------------------------
+async def test_imposter_rotates_between_rounds(engine, conn, bot):
+    await setup_lobby(engine, conn)
+    await engine._cmd_startgame(GROUP, user_ns(1), ["3"])
+
+    imposters = []
+    for _ in range(2):
+        game = await load_game(conn)
+        imposters.append(game.current_round.imposter_id)
+        # Finish the round: everyone answers, everyone votes out the imposter.
+        for uid in (1, 2, 3):
+            await pick_option(engine, conn, uid)
+        imposter = imposters[-1]
+        for uid in (1, 2, 3):
+            target = imposter if uid != imposter else next(
+                u for u in (1, 2, 3) if u != uid
+            )
+            await engine._cast_vote(GROUP, uid, target)
+        await conn.execute(
+            "UPDATE live_games SET deadline_at = now() - interval '1 second'"
+        )
+        await engine.process_due()  # fire the next-round deadline
+
+    game = await load_game(conn)
+    imposters.append(game.current_round.imposter_id)
+    assert game.imposter_history == imposters
+    # Back-to-back repeats are impossible with 3 players.
+    assert imposters[0] != imposters[1]
+    assert imposters[1] != imposters[2]
+    # After 3 rounds with 3 players, everyone has been the imposter once.
+    assert set(imposters) == {1, 2, 3}
 
 
 # ---------------------------------------------------------------------------

@@ -5,7 +5,7 @@ A fast, social-deduction **party game for Telegram groups**.
 One player is the **imposter** — they don't know the secret word. Everyone else
 does. Players answer a prompt *indirectly* (without giving the word away), then
 vote on who seems suspicious. If the imposter survives the vote, they get one
-final chance to guess the word.
+final chance to guess the word from **four options**.
 
 Short rounds, high tension, low friction, strong replay value.
 
@@ -19,11 +19,19 @@ Short rounds, high tension, low friction, strong replay value.
 4. The bot privately DMs the **secret word** to everyone except the imposter,
    who is told they're *"Out of the Loop."*
 5. The bot posts a **question** to the group (e.g. *"How would you use it?"*).
-6. Everyone **DMs their answer** to the bot. Answers are revealed together.
+6. Everyone **answers privately** in their DM with the bot — by tapping one of
+   the answer options (webhook mode) or typing a free-text answer (polling
+   mode). Answers are revealed together.
 7. The bot opens **voting** — one tap, one vote, hidden until the deadline.
 8. The bot **reveals** the imposter and the vote tally.
-9. If the imposter survived, they get **one private guess** at the word.
+9. If the imposter survived, they get **one private guess**: they pick the
+   secret word from **4 options** (one correct + 3 decoys from the same
+   category).
 10. **Scores** are awarded and the next round begins.
+
+The imposter role **rotates fairly**: each round it goes to a random player
+among those who have been the imposter the fewest times this match, and never
+to the same player twice in a row (when avoidable).
 
 After the configured number of rounds, the bot shows the final leaderboard.
 
@@ -44,18 +52,20 @@ No negative points — casual-friendly by design.
 | Command | Where | Who | Description |
 | --- | --- | --- | --- |
 | `/start` | DM | anyone | Register with the bot (required so it can DM you). |
-| `/help` | anywhere | anyone | Show the rules and commands. |
+| `/help` | anywhere | anyone | Show how to play and the command list. |
+| `/rules` | anywhere | anyone | Show the full rules and scoring. |
 | `/create` | group | anyone | Create a room; you become the host. |
 | `/join` | group | anyone | Join the open room. |
 | `/leave` | group | player | Leave the room. |
 | `/players` | group | anyone | Show the current lobby. |
 | `/startgame [rounds]` | group | host | Start the match (optional round count). |
 | `/score` | group | anyone | Show the current match scoreboard. |
-| `/leaderboard` | group | anyone | Show all-time stats for this group. |
+| `/leaderboard` | anywhere | anyone | Show all-time player stats. |
 | `/abort` | group | host | Abort the current match. |
 
-Players answer the prompt and make the final guess by **DMing the bot** while
-the relevant phase is open. Voting is done with inline buttons in the group.
+Players answer the prompt and make the final guess **in their DM with the
+bot** while the relevant phase is open. Voting is done with inline buttons in
+the group.
 
 ---
 

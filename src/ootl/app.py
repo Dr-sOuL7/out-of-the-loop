@@ -22,7 +22,7 @@ _COMMANDS = [
     BotCommand("players", "Show the lobby (group)"),
     BotCommand("startgame", "Start the match (host)"),
     BotCommand("score", "Show the current scoreboard"),
-    BotCommand("leaderboard", "All-time stats for this group"),
+    BotCommand("leaderboard", "All-time player stats"),
     BotCommand("abort", "Abort the current match (host)"),
     BotCommand("rules", "Show the rules"),
     BotCommand("help", "How to play"),

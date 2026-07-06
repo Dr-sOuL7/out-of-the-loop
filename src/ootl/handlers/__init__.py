@@ -36,6 +36,7 @@ def register_handlers(application: Application) -> None:
     application.add_handler(CallbackQueryHandler(lobby.leave_cb, pattern=r"^leave$"))
     application.add_handler(CallbackQueryHandler(lobby.start_cb, pattern=r"^start$"))
     application.add_handler(CallbackQueryHandler(voting.vote_cb, pattern=r"^vote:"))
+    application.add_handler(CallbackQueryHandler(voting.guess_cb, pattern=r"^guess:"))
 
     # --- private text = answers / imposter guesses ---
     application.add_handler(

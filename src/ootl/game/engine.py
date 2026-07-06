@@ -29,7 +29,7 @@ from ootl.content.manager import ContentError, ContentManager
 from ootl.db.repositories import Repositories
 from ootl.game import texts
 from ootl.game.enums import MatchState, can_transition
-from ootl.game.models import GameState, Player, Round
+from ootl.game.models import GameState, Player, Round, choose_imposter
 from ootl.game.scoring import score_round
 from ootl.game.tally import tally_votes
 from ootl.utils.text import guess_matches, truncate
@@ -322,7 +322,7 @@ class GameEngine:
             return
 
         participants = game.player_ids
-        imposter_id = secrets.choice(participants)
+        imposter_id = choose_imposter(participants, game.imposter_history)
 
         rnd = Round(
             round_number=game.current_round_number,
@@ -349,6 +349,8 @@ class GameEngine:
         if failures:
             await self._handle_role_failures(context, game, failures, attempt)
             return
+        # Only successfully-dealt rounds count toward rotation fairness.
+        game.imposter_history.append(imposter_id)
 
         # --- post the question ---------------------------------------------
         self._transition(game, MatchState.QUESTION_PHASE)
@@ -453,7 +455,10 @@ class GameEngine:
             game.state == MatchState.IMPOSTER_GUESS_PHASE
             and user.id == game.current_round.imposter_id
         ):
-            await self._record_guess(context, game, user, text)
+            if game.current_round.guess_options:
+                await self._dm(context, user.id, texts.guess_use_buttons())
+            else:
+                await self._record_guess(context, game, user, text)
             return True
         return False
 
@@ -670,16 +675,32 @@ class GameEngine:
             rnd.round_id, MatchState.IMPOSTER_GUESS_PHASE.value
         )
         cat_name = _category_name(rnd.category, await self.content.categories())
-        ok = await self._dm(
-            context,
-            rnd.imposter_id,
-            texts.imposter_guess_prompt(cat_name, self.settings.guess_time_seconds),
-        )
+        seconds = self.settings.guess_time_seconds
+        decoys = await self.content.decoy_words(rnd.category, rnd.secret_word)
+        if decoys:
+            guess_options = [rnd.secret_word, *decoys]
+            secrets.SystemRandom().shuffle(guess_options)
+            rnd.guess_options = guess_options
+            ok = await self._dm(
+                context,
+                rnd.imposter_id,
+                texts.imposter_guess_prompt_options(cat_name, seconds),
+                reply_markup=self._guess_keyboard(rnd),
+            )
+        else:
+            # No decoys available for this category -> free-text fallback.
+            ok = await self._dm(
+                context,
+                rnd.imposter_id,
+                texts.imposter_guess_prompt(cat_name, seconds),
+            )
         await self._send(
             context,
             game.chat_id,
             texts.imposter_guess_announce(
-                game.display_name(rnd.imposter_id), self.settings.guess_time_seconds
+                game.display_name(rnd.imposter_id),
+                seconds,
+                option_count=len(rnd.guess_options) or None,
             ),
         )
         if not ok:
@@ -689,10 +710,81 @@ class GameEngine:
         self._schedule(
             context,
             game,
-            self.settings.guess_time_seconds,
+            seconds,
             self._job_guess_timeout,
             "guess",
         )
+
+    def _guess_keyboard(self, rnd: Round) -> InlineKeyboardMarkup:
+        """One button per candidate word for the imposter's final guess."""
+        buttons: list[list[InlineKeyboardButton]] = []
+        row: list[InlineKeyboardButton] = []
+        for i, opt in enumerate(rnd.guess_options):
+            row.append(
+                InlineKeyboardButton(
+                    truncate(opt, 28), callback_data=f"guess:{rnd.round_number}:{i}"
+                )
+            )
+            if len(row) == 2:
+                buttons.append(row)
+                row = []
+        if row:
+            buttons.append(row)
+        return InlineKeyboardMarkup(buttons)
+
+    async def cast_guess(
+        self,
+        context: ContextTypes.DEFAULT_TYPE,
+        user_id: int,
+        round_no: int,
+        idx: int,
+        dm_message,
+    ) -> str:
+        """Handle the imposter tapping one of the guess-option buttons."""
+        chat_id = self._player_index.get(user_id)
+        game = self.games.get(chat_id) if chat_id is not None else None
+        if game is None:
+            return "You're not in an active game."
+        async with self._lock(game.chat_id):
+            rnd = game.current_round
+            if (
+                rnd is None
+                or game.state != MatchState.IMPOSTER_GUESS_PHASE
+                or rnd.round_number != round_no
+            ):
+                return "⏰ Too late — the guess phase is closed."
+            if user_id != rnd.imposter_id:
+                return "Only the imposter can guess."
+            if rnd.imposter_guess is not None:
+                return "You've already guessed."
+            if not (0 <= idx < len(rnd.guess_options)):
+                return "Invalid choice."
+            guess = rnd.guess_options[idx]
+            rnd.imposter_guess = guess
+            rnd.imposter_guessed_correct = guess_matches(guess, rnd.secret_word)
+            self._cancel_job(context, game)
+            outcome = (
+                texts.guess_dm_correct(rnd.secret_word)
+                if rnd.imposter_guessed_correct
+                else texts.guess_dm_wrong(rnd.secret_word)
+            )
+            # Lock the DM message: replace the buttons with the outcome.
+            edited = False
+            if dm_message is not None:
+                try:
+                    await context.bot.edit_message_text(
+                        chat_id=dm_message.chat.id,
+                        message_id=dm_message.message_id,
+                        text=outcome,
+                        parse_mode=ParseMode.HTML,
+                    )
+                    edited = True
+                except TelegramError:
+                    pass
+            if not edited:
+                await self._dm(context, user_id, outcome)
+            await self._do_scoring(context, game)
+        return "🎯 Correct!" if rnd.imposter_guessed_correct else "❌ Wrong…"
 
     async def _record_guess(
         self,
