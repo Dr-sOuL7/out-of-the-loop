@@ -429,6 +429,9 @@ async def test_next_round_via_tick(engine, conn, bot):
     game = await load_game(conn)
     assert game.state == MatchState.ANSWER_COLLECTION
     assert game.current_round_number == 2
+    # Fairness: the round-1 imposter is never the round-2 imposter.
+    assert game.current_round.imposter_id != imposter
+    assert game.imposter_counts.get(imposter) == 1
 
 
 # ---------------------------------------------------------------------------

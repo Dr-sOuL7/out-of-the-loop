@@ -26,6 +26,8 @@ def game_to_json(game: GameState) -> dict:
         "scores": {str(uid): pts for uid, pts in game.scores.items()},
         "lobby_message_id": game.lobby_message_id,
         "deadline_kind": game.deadline_kind,
+        "imposter_counts": {str(uid): n for uid, n in game.imposter_counts.items()},
+        "last_imposter_id": game.last_imposter_id,
         "round": _round_to_json(game.current_round),
     }
 
@@ -48,6 +50,10 @@ def game_from_json(data: dict) -> GameState:
             username=p.get("username"),
         )
     game.scores = {int(uid): pts for uid, pts in data.get("scores", {}).items()}
+    game.imposter_counts = {
+        int(uid): n for uid, n in data.get("imposter_counts", {}).items()
+    }
+    game.last_imposter_id = data.get("last_imposter_id")
     game.current_round = _round_from_json(data.get("round"))
     return game
 

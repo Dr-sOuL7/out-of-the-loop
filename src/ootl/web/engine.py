@@ -15,7 +15,6 @@ One WebEngine is constructed per invocation with a fresh connection.
 from __future__ import annotations
 
 import logging
-import secrets
 
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
@@ -27,6 +26,7 @@ from ootl.game import texts
 from ootl.game.enums import MatchState, can_transition
 from ootl.game.models import GameState, Player, Round
 from ootl.game.scoring import score_round
+from ootl.game.selection import choose_imposter
 from ootl.game.tally import tally_votes
 from ootl.utils.text import guess_matches, truncate
 from ootl.web import content, pg
@@ -410,7 +410,11 @@ class WebEngine:
             return
 
         participants = game.player_ids
-        imposter_id = secrets.choice(participants)
+        imposter_id = choose_imposter(
+            participants, game.imposter_counts, game.last_imposter_id
+        )
+        game.imposter_counts[imposter_id] = game.imposter_counts.get(imposter_id, 0) + 1
+        game.last_imposter_id = imposter_id
         rnd = Round(
             round_number=game.current_round_number,
             category=category,

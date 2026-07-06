@@ -89,6 +89,11 @@ class GameState:
     match_id: int | None = None
     scores: dict[int, int] = field(default_factory=dict)      # user_id -> points
     current_round: Round | None = None
+
+    # Imposter-rotation fairness: how often each player has been the imposter
+    # this match, and who was it last round (never picked twice in a row).
+    imposter_counts: dict[int, int] = field(default_factory=dict)
+    last_imposter_id: int | None = None
     created_at: float = field(default_factory=time.monotonic)
 
     # Name of the currently-scheduled phase-deadline job (so it can be cancelled
